@@ -2,27 +2,82 @@
 
 # --- Dataset (for training) ---
 dataset:
-  name: "places365"
-  path: "./data/places365"  # Path where Places365 dataset is stored
-  # Expected structure:
-  #   train/  (used for training, one subfolder per category)
-  #   val/    (used as the held-out evaluation set)
+  name: "indoor67"
+  path: "./data/indoor67"  # raw SUN RGB-D root (read in place, no prep step)
+
+  # Which dataset adapter to use. Omit to auto-detect from the folder
+  # structure. Options: places365 | indoor67 | sunrgbd
+  #   places365    -> <path>/<split>/<category>/*.jpg (Places365 layout)
+  #   indoor67     -> <path>/Images/<category>/*.jpg  (MIT Indoor-67)
+  #   sunrgbd      -> raw SUN RGB-D (scene.txt + image/), no prep step
+  loader: "indoor67"
+
+  # For datasets without a native train/val split (indoor67, raw sunrgbd),
+  # a deterministic split is synthesized using these:
+  val_fraction: 0.15
+  seed: 42
+
+  # sunrgbd loader only: drop categories with fewer than this many images.
+  min_images: 20
+  # Optionally translate SUN RGB-D's native scene labels to other names,
+  # e.g. library -> library-indoor. Left empty: native names are used
+  # (so selected_categories below must match, e.g. "library", "gym").
+  # category_map:
+  #   library: "library-indoor"
+  #   gym: "gymnasium-indoor"
 
   # Select which room categories to use (to reduce dataset size).
   # If empty list [], ALL available categories will be used.
   # Note: Places365 has no "hallway"/"entrance" categories;
   # the closest ones are "corridor" and "entrance_hall".
+
+  ## Places365
+  # selected_categories: [
+  #   "office", "bedroom", "kitchen", "bathroom",
+  #   "living_room", "dining_room",
+  #   # "entrance_hall",
+  #   "corridor",
+  #   # "staircase",
+  #   "home_office",
+  #   "garage-indoor",
+  #   "gymnasium-indoor",
+  #   "library-indoor",
+  # ]
+
+  ## SUNRGBD
+  # selected_categories: [
+  #   "office",
+  #   "bedroom",
+  #   "kitchen",
+  #   "bathroom",
+  #   "living_room",
+  #   "dining_room",
+  #   "corridor",
+  #   "home_office",
+  #   "gym",
+  #   "library",
+  # ]
+
+  ## Indoor67
   selected_categories: [
-    "office", "bedroom", "kitchen", "bathroom",
-    "living_room", "dining_room", "entrance_hall",
-    "corridor", "staircase", "home_office"
+    "office",
+    "bedroom",
+    "kitchen",
+    "bathroom",
+    "livingroom",
+    "dining_room",
+    "corridor",
+    "library",
+    "gym",
+    "garage",
   ]
+
 
   # Limit training images per category (null = use all ~5000 per category).
   # Object detection is the slow part of training, so this is the main
   # knob for training time. 1000 images/category is plenty for stable
   # P(object|room) estimates.
-  max_train_images_per_category: 3000
+  max_train_images_per_category: 1000
 
 # --- Object Detection ---
 detection:

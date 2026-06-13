@@ -34,12 +34,11 @@ import yaml
 
 from utilities.object_detection import ObjectDetector
 from utilities.bayesian_inference import BayesianNetwork
+from utilities.datasets import build_dataset
 from utilities.evaluation import (
     compute_confusion_matrix, plot_confusion_matrix, plot_accuracy_bars,
     plot_object_frequencies, evaluate_split, save_metrics, print_summary,
 )
-
-IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png")
 
 
 def load_config(path):
@@ -49,38 +48,13 @@ def load_config(path):
         return yaml.safe_load(f)
 
 
-def list_images(folder):
-    return sorted(
-        os.path.join(folder, name) for name in os.listdir(folder)
-        if name.lower().endswith(IMAGE_EXTENSIONS)
-    )
-
-
 # ----------------------------------------------------------------------
-# Data preparation
+# Category selection
 # ----------------------------------------------------------------------
 
-def check_dataset(dataset_path):
-    """Fail early with instructions if the dataset isn't where expected."""
-    train_dir = os.path.join(dataset_path, "train")
-    val_dir = os.path.join(dataset_path, "val")
-    if not (os.path.isdir(train_dir) and os.path.isdir(val_dir)):
-        sys.exit(
-            f"Places365 dataset not found at '{dataset_path}'.\n"
-            f"Expected subfolders: train/ and val/, each containing one\n"
-            f"folder per room category with JPG images.\n\n"
-            f"Download it manually from http://places.csail.mit.edu/download.html\n"
-            f"and extract it so that '{train_dir}' exists, or fix\n"
-            f"`dataset.path` in your config file."
-        )
-
-
-def select_categories(dataset_path, selected):
+def select_categories(dataset, selected):
     """Use categories from config, or auto-detect all of them if empty."""
-    available = sorted(
-        d for d in os.listdir(os.path.join(dataset_path, "train"))
-        if os.path.isdir(os.path.join(dataset_path, "train", d))
-    )
+    available = dataset.categories()
     if not selected:
         print(f"No categories selected in config -> using all {len(available)}.")
         return available
@@ -115,9 +89,8 @@ def detect_folder(detector, image_paths, batch_size, label=""):
 # Main phases
 # ----------------------------------------------------------------------
 
-def train_phase(config, detector, categories):
+def train_phase(config, dataset, detector, categories):
     """Count object occurrences on train/ and build the Bayesian network."""
-    dataset_path = config["dataset"]["path"]
     max_per_cat = config["dataset"].get("max_train_images_per_category")
     batch_size = config["detection"].get("batch_size", 16)
 
@@ -130,7 +103,7 @@ def train_phase(config, detector, categories):
 
     print("\n--- Training phase: counting object occurrences per room ---")
     for i, cat in enumerate(categories):
-        images = list_images(os.path.join(dataset_path, "train", cat))
+        images = dataset.images(cat, "train")
         if max_per_cat:
             images = images[:max_per_cat]
         images_per_room[i] = len(images)
@@ -146,15 +119,14 @@ def train_phase(config, detector, categories):
     return network
 
 
-def evaluate_phase(config, detector, network, split_name):
+def evaluate_phase(config, dataset, detector, network, split_name):
     """Run detection + Bayes on one split; return posteriors and labels."""
-    dataset_path = config["dataset"]["path"]
     batch_size = config["detection"].get("batch_size", 16)
 
     posteriors, labels = [], []
     print(f"\n--- Evaluating on {split_name}/ ---")
     for i, cat in enumerate(network.room_names):
-        images = list_images(os.path.join(dataset_path, split_name, cat))
+        images = dataset.images(cat, split_name)
         per_image_objects = detect_folder(
             detector, images, batch_size, label=f"{split_name}/{cat}")
         for objects in per_image_objects:
@@ -170,15 +142,14 @@ def main():
     args = parser.parse_args()
     config = load_config(args.config)
 
-    dataset_path = config["dataset"]["path"]
-    check_dataset(dataset_path)
+    dataset = build_dataset(config)
 
     categories = select_categories(
-        dataset_path, config["dataset"].get("selected_categories", []))
+        dataset, config["dataset"].get("selected_categories", []))
 
     print(f"\nRoom categories ({len(categories)}): {categories}")
     for cat in categories:
-        n = len(list_images(os.path.join(dataset_path, "train", cat)))
+        n = len(dataset.images(cat, "train"))
         print(f"  {cat:<18} train={n}")
 
     detector = ObjectDetector(
@@ -189,7 +160,7 @@ def main():
     )
 
     # --- Train ---
-    network = train_phase(config, detector, categories)
+    network = train_phase(config, dataset, detector, categories)
     model_dir = config["model"].get("dir", "./models/borm")
     network.save(model_dir)
     network.export_structure(
@@ -202,7 +173,7 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     top_k = config["training"].get("top_k_accuracy", 3)
 
-    posteriors, labels = evaluate_phase(config, detector, network, "val")
+    posteriors, labels = evaluate_phase(config, dataset, detector, network, "val")
     metrics = evaluate_split(posteriors, labels, categories, top_k=top_k)
     print_summary(metrics, "val")
 
