@@ -13,12 +13,12 @@ the image" yes/no. Given the room, objects are assumed conditionally
 independent — that's the naive Bayes assumption, and it's what lets us
 write the joint as a simple product.
 
-Inference is plain Bayes rule:
+Inference is plain Bayes rule with a full Bernoulli likelihood:
 
-    P(room | objects) ∝ P(objects | room) * P(room)
-                      = P(room) * Π_i P(obj_i | room)
+    P(room | objects) ∝ P(room) · Π_present P(obj|room) · Π_absent (1 - P(obj|room))
 
-where the product runs over the objects detected in the image.
+i.e. both the presence AND the absence of each known object count as
+evidence (see compute_posterior for why the absence terms matter).
 """
 
 import json
@@ -73,29 +73,42 @@ class BayesianNetwork:
 
     def compute_posterior(self, detected_objects):
         """
-        Apply Bayes rule: P(room | objects) ∝ P(objects | room) * P(room).
+        Apply Bayes rule with the FULL Bernoulli naive Bayes likelihood:
 
-        For each room, multiply the probabilities of the detected objects
-        appearing in that room. This assumes conditional independence of
-        objects given the room (naive Bayes assumption).
+            P(room | objects) ∝ P(room)
+                                · Π_{obj present} P(obj | room)
+                                · Π_{obj absent}  (1 - P(obj | room))
 
-        Returns a normalized numpy array of shape (num_rooms,).
+        Every known object is a binary "present / absent" event, so both
+        its presence AND its absence are evidence. The absence terms matter
+        a lot in practice: a near-empty scene (no bed, no oven, no couch...)
+        is itself strong evidence for "empty" rooms like corridors and
+        staircases. Without the absence product they could almost never win,
+        because they have very few objects to detect, and a broad-object
+        room like "office" would absorb everything. (Laplace smoothing in
+        fit() keeps every P strictly inside (0, 1), so both log(P) and
+        log(1 - P) are always finite.)
+
+        Objects are assumed conditionally independent given the room (the
+        naive Bayes assumption), which is what turns the joint into a
+        product. Returns a normalized numpy array of shape (num_rooms,).
         """
-        # Work in log-space: products of many small probabilities underflow
-        # to 0.0 in plain floating point; sums of logs do not.
-        log_posterior = np.log(self.P_room)
-
+        # Build a boolean "present" mask over the trained object vocabulary.
+        # Detected classes the model never trained on are simply ignored.
+        present = np.zeros(len(self.object_names), dtype=bool)
         for obj in detected_objects:
-            if obj not in self.object_names:
-                # Object class the model has never seen — carries no
-                # information about the room, so skip it.
-                continue
-            j = self.object_names.index(obj)
-            log_posterior += np.log(self.P_object_given_room[:, j])
+            if obj in self.object_names:
+                present[self.object_names.index(obj)] = True
 
-        # Normalize: subtract the max first for numerical stability,
-        # then convert back from log-space and divide by the sum
-        # (this implements the "/ P(objects)" part of Bayes rule).
+        # Work in log-space: products of many probabilities underflow to 0.0
+        # in plain floating point; sums of logs do not.
+        log_posterior = np.log(self.P_room).copy()
+        log_posterior += np.log(self.P_object_given_room[:, present]).sum(axis=1)
+        log_posterior += np.log(1.0 - self.P_object_given_room[:, ~present]).sum(axis=1)
+
+        # Normalize: subtract the max first for numerical stability, then
+        # convert back from log-space and divide by the sum (this implements
+        # the "/ P(objects)" part of Bayes rule).
         log_posterior -= log_posterior.max()
         posterior = np.exp(log_posterior)
         return posterior / posterior.sum()
