@@ -216,3 +216,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# dataset and generated artifacts
+data/
+models/
+output/
+*.pt
+
+# articles
+*.pdf

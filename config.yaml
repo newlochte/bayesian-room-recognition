@@ -1,0 +1,70 @@
+# config.yaml — BORM semantic room recognition
+
+# --- Dataset (for training) ---
+dataset:
+  name: "places365"
+  path: "./data/places365"  # Path where Places365 dataset is stored
+  # Expected structure:
+  #   train/  (used for training, one subfolder per category)
+  #   val/    (used as the held-out evaluation set)
+
+  # Select which room categories to use (to reduce dataset size).
+  # If empty list [], ALL available categories will be used.
+  # Note: Places365 has no "hallway"/"entrance" categories;
+  # the closest ones are "corridor" and "entrance_hall".
+  selected_categories: [
+    "office", "bedroom", "kitchen", "bathroom",
+    "living_room", "dining_room", "entrance_hall",
+    "corridor", "staircase", "home_office"
+  ]
+
+  # Limit training images per category (null = use all ~5000 per category).
+  # Object detection is the slow part of training, so this is the main
+  # knob for training time. 1000 images/category is plenty for stable
+  # P(object|room) estimates.
+  max_train_images_per_category: 3000
+
+# --- Object Detection ---
+detection:
+  model: "yolov8m"           # yolov8n (nano), yolov8s (small), yolov8m (medium)
+  weights_dir: "./models/yolo"  # pre-trained YOLO weights are downloaded/cached here
+  confidence_threshold: 0.4
+  batch_size: 32             # images per YOLO batch (GPU-friendly)
+  device: null               # null = auto (cuda if available), or "cpu"/"cuda:0"
+
+# --- Trained Model (for inference) ---
+# The trained BORM model lives in its own subfolder of models/, separate
+# from the downloaded YOLO weights (models/yolo/).
+model:
+  dir: "./models/borm"
+  P_object_given_room: "./models/borm/P_object_given_room.npy"
+  P_room: "./models/borm/P_room.npy"
+  object_names: "./models/borm/object_names.json"
+  room_names: "./models/borm/room_names.json"
+  network_structure: "./models/borm/network_structure.json"  # For Manim
+
+# --- Inference ---
+inference:
+  top_k: 3  # Show top-k room predictions
+
+# --- Visualization ---
+visualization:
+  save_network: true
+  save_inference: true
+  network_path: "./output/inference/bayes_network.png"
+  inference_path: "./output/inference/inference_result.png"
+  dpi: 150
+  max_objects_in_network: 12  # how many object nodes to draw at most
+
+# --- Training & Evaluation ---
+training:
+  output_dir: "./output/evaluation"
+  smoothing: 1.0             # Laplace smoothing for probability estimation
+  save_plots: true
+  metrics_file: "./output/evaluation/metrics.json"
+  top_k_accuracy: 3
+
+# --- Inference output ---
+output:
+  inference_dir: "./output/inference"
+  results_json: "./output/inference/results.json"
