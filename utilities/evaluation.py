@@ -164,12 +164,15 @@ def evaluate_split(posteriors, ground_truth, room_names, top_k=3):
     predictions = posteriors.argmax(axis=1)
     per_class, macro = compute_per_class_metrics(
         predictions, ground_truth, room_names)
+    cm = compute_confusion_matrix(predictions, ground_truth, len(room_names))
     return {
         "accuracy": compute_accuracy(predictions, ground_truth),
         f"top{top_k}_accuracy": compute_topk_accuracy(
             posteriors, ground_truth, k=top_k),
         "macro": macro,
         "per_room": per_class,
+        # rows = true room, cols = predicted room (raw integer counts)
+        "confusion_matrix": cm.tolist(),
         "num_images": len(ground_truth),
     }
 

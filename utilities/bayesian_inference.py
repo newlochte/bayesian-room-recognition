@@ -37,6 +37,10 @@ class BayesianNetwork:
         self.P_object_given_room = None  # shape (num_rooms, num_objects)
         # P_room[i] = prior P(room i)
         self.P_room = None               # shape (num_rooms,)
+        # Raw training counts (set by fit(), optionally loaded from disk)
+        self.training_counts = None
+        self.training_images_per_room = None
+        self.training_smoothing = None
 
     # ------------------------------------------------------------------
     # Training ("from scratch": just counting, the Bayesian way)
@@ -66,6 +70,11 @@ class BayesianNetwork:
 
         # Room prior = how often each room appears in the training set.
         self.P_room = n_images / n_images.sum()
+
+        # Keep raw counts so they can be saved and used by the animation.
+        self.training_counts = counts.astype(int)
+        self.training_images_per_room = n_images.astype(int)
+        self.training_smoothing = smoothing
 
     # ------------------------------------------------------------------
     # Inference
@@ -129,6 +138,13 @@ class BayesianNetwork:
         np.save(os.path.join(model_dir, "P_object_given_room.npy"),
                 self.P_object_given_room)
         np.save(os.path.join(model_dir, "P_room.npy"), self.P_room)
+        if self.training_counts is not None:
+            np.save(os.path.join(model_dir, "training_counts.npy"),
+                    self.training_counts)
+            np.save(os.path.join(model_dir, "training_images_per_room.npy"),
+                    self.training_images_per_room)
+            with open(os.path.join(model_dir, "training_smoothing.json"), "w") as f:
+                json.dump(self.training_smoothing, f)
         with open(os.path.join(model_dir, "object_names.json"), "w") as f:
             json.dump(self.object_names, f, indent=2)
         with open(os.path.join(model_dir, "room_names.json"), "w") as f:
@@ -152,6 +168,13 @@ class BayesianNetwork:
         network.P_object_given_room = np.load(
             os.path.join(model_dir, "P_object_given_room.npy"))
         network.P_room = np.load(os.path.join(model_dir, "P_room.npy"))
+        counts_path = os.path.join(model_dir, "training_counts.npy")
+        if os.path.exists(counts_path):
+            network.training_counts = np.load(counts_path)
+            network.training_images_per_room = np.load(
+                os.path.join(model_dir, "training_images_per_room.npy"))
+            with open(os.path.join(model_dir, "training_smoothing.json")) as f:
+                network.training_smoothing = json.load(f)
         return network
 
     # ------------------------------------------------------------------

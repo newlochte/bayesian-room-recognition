@@ -2,15 +2,15 @@
 
 # --- Dataset (for training) ---
 dataset:
-  name: "indoor67"
-  path: "./data/indoor67"  # raw SUN RGB-D root (read in place, no prep step)
+  name: "places365"
+  path: "./data/places365"  # raw SUN RGB-D root (read in place, no prep step)
 
   # Which dataset adapter to use. Omit to auto-detect from the folder
   # structure. Options: places365 | indoor67 | sunrgbd
   #   places365    -> <path>/<split>/<category>/*.jpg (Places365 layout)
   #   indoor67     -> <path>/Images/<category>/*.jpg  (MIT Indoor-67)
   #   sunrgbd      -> raw SUN RGB-D (scene.txt + image/), no prep step
-  loader: "indoor67"
+  loader: "places365"
 
   # For datasets without a native train/val split (indoor67, raw sunrgbd),
   # a deterministic split is synthesized using these:
@@ -32,17 +32,21 @@ dataset:
   # the closest ones are "corridor" and "entrance_hall".
 
   ## Places365
-  # selected_categories: [
-  #   "office", "bedroom", "kitchen", "bathroom",
-  #   "living_room", "dining_room",
-  #   # "entrance_hall",
-  #   "corridor",
-  #   # "staircase",
-  #   "home_office",
-  #   "garage-indoor",
-  #   "gymnasium-indoor",
-  #   "library-indoor",
-  # ]
+  selected_categories: [
+    "office",
+    "bedroom",
+    "kitchen",
+    "bathroom",
+    "living_room",
+    "dining_room",
+    # "entrance_hall",
+    "corridor",
+    "staircase",
+    # "home_office",
+    "garage-indoor",
+    "gymnasium-indoor",
+    "library-indoor",
+  ]
 
   ## SUNRGBD
   # selected_categories: [
@@ -59,31 +63,31 @@ dataset:
   # ]
 
   ## Indoor67
-  selected_categories: [
-    "office",
-    "bedroom",
-    "kitchen",
-    "bathroom",
-    "livingroom",
-    "dining_room",
-    "corridor",
-    "library",
-    "gym",
-    "garage",
-  ]
+  # selected_categories: [
+  #   "office",
+  #   "bedroom",
+  #   "kitchen",
+  #   "bathroom",
+  #   "livingroom",
+  #   "dining_room",
+  #   "corridor",
+  #   "library",
+  #   "gym",
+  #   "garage",
+  # ]
 
 
   # Limit training images per category (null = use all ~5000 per category).
   # Object detection is the slow part of training, so this is the main
   # knob for training time. 1000 images/category is plenty for stable
   # P(object|room) estimates.
-  max_train_images_per_category: 1000
+  max_train_images_per_category: 500
 
 # --- Object Detection ---
 detection:
   model: "yolov8m"           # yolov8n (nano), yolov8s (small), yolov8m (medium)
   weights_dir: "./models/yolo"  # pre-trained YOLO weights are downloaded/cached here
-  confidence_threshold: 0.4
+  confidence_threshold: 0.6
   batch_size: 32             # images per YOLO batch (GPU-friendly)
   device: null               # null = auto (cuda if available), or "cpu"/"cuda:0"
 
