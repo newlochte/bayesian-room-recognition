@@ -217,10 +217,10 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# dataset and generated artifacts
-data/
-models/
-output/
+# dataset and generated artifacts (root-anchored so manim/data is kept)
+/data/
+/models/
+/output/
 *.pt
 
 # articles
